@@ -4,7 +4,7 @@ RUN apk update && apk upgrade && \
     apk add --no-cache bash git openssh
 
 # Initiate the key
-ARG KEY
+ARG ACCESS_KEY
 RUN mkdir /root/.ssh/
 RUN echo "${ACCESS_KEY}" > /root/.ssh/id_rsa
 RUN chmod 600 /root/.ssh/id_rsa
