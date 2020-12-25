@@ -1,0 +1,61 @@
+pipeline {
+    environment {
+        REGISTRY = 'dolldot/emoh-api'
+        REGISTRY_CREDENTIAL = 'dockerhub'
+        DOCKER_CONTAINER = 'emoh-api'
+        STAGE = 'develop'
+    }
+    agent any
+
+    stages {
+        stage('Clone repository') {
+            steps {
+                git credentialsId: 'github',
+                    // branch: 'feature/unit-test',
+                    url: "git@github.com:${env.REGISTRY}.git"
+            }
+        }
+        stage('Building image') {
+            steps {
+                script {
+                    echo 'Build image...'
+                    sh "docker build -t ${env.REGISTRY}:${env.STAGE} -f Dockerfile.dev ."
+                    echo 'Image ready'
+                }
+            }
+        }
+        stage('Unit test') {
+            steps {
+                script {
+                    try {
+                        sh "docker run -d --name ${env.DOCKER_CONTAINER} ${env.REGISTRY}:${env.STAGE}"
+                        sh "docker exec -i ${env.DOCKER_CONTAINER} sh -c 'npm run test;'"
+                    }
+                    catch (exc) {
+                        echo 'Test failed'
+                        sh "docker stop ${env.DOCKER_CONTAINER}"
+                        sh "docker rm ${env.DOCKER_CONTAINER}"
+                        // sh "docker rmi ${env.REGISTRY}:${env.STAGE}"
+                    }
+                }
+            }
+            post {
+                success {
+                    sh "docker cp ${env.DOCKER_CONTAINER}:/app/output/coverage/junit/junit.xml ."
+                    junit 'junit.xml'
+                    sh "docker stop ${env.DOCKER_CONTAINER}"
+                    sh "docker rm ${env.DOCKER_CONTAINER}"
+                }
+            }
+        }
+        stage('Deploy image') {
+            steps {
+                script {
+                    docker.withRegistry('', REGISTRY_CREDENTIAL) {
+                        docker.image("${env.REGISTRY}:${env.STAGE}").push("${env.STAGE}")
+                    }
+                }
+            }
+        }
+    }
+}

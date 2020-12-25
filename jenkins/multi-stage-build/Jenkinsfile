@@ -1,0 +1,35 @@
+pipeline {
+    environment {
+        REGISTRY = 'dolldot/emoh-api'
+        REGISTRY_CREDENTIAL = 'dockerhub'
+        DOCKER_CONTAINER = 'emoh-api'
+        STAGE = 'develop'
+    }
+    agent any
+
+    stages {
+        stage('Clone repository') {
+            steps {
+                git credentialsId: 'github',
+                    // branch: 'feature/private-repo',
+                    url: "git@github.com:${env.REGISTRY}.git"
+            }
+        }
+        stage('Building image') {
+            steps {
+                script {
+                    withCredentials([sshUserPrivateKey(credentialsId: 'github', keyFileVariable: 'GITHUB_CREDENTIAL', passphraseVariable: '', usernameVariable: 'username')]) {
+                        echo 'Build image...'
+                        sh """
+                        set +x
+                        docker build -t ${env.REGISTRY}:${env.STAGE} --build-arg ACCESS_KEY="\$(cat ${GITHUB_CREDENTIAL})" -f Dockerfile.dev .
+                        set -x
+                        """
+                        sh "docker image prune --filter label=stage=builder -f"
+                        echo 'Image ready'
+                    }
+                }
+            }
+        }
+    }
+}
